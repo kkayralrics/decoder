@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>kayralrics.com</title>
+<style>
+  :root{
+    --bg:   #000000;
+    --red:  #ff0000;
+    --text: #ffffff;
+    --mono: 'IBM Plex Mono', 'Courier New', monospace;
+  }
+  *{ box-sizing:border-box; }
+  html,body{ margin:0; padding:0; }
+  body{
+    background:var(--bg);
+    color:var(--text);
+    font-family:var(--mono);
+    min-height:100vh;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+  }
+  .mark{
+    font-size:clamp(20px, 4vw, 32px);
+    letter-spacing:0.04em;
+    animation: pulse 2s steps(1) infinite;
+  }
+
+  @keyframes pulse{
+    0%   { color: var(--text); }
+    50%  { color: var(--red); }
+    100% { color: var(--text); }
+  }
+</style>
+</head>
+<body>
+  <div class="mark">kayralrics<span>.</span>com</div>
+</body>
+</html>
