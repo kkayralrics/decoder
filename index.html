@@ -1,0 +1,868 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Decoder</title>
+<style>
+  :root{
+    --bg:     #000000;
+    --panel:  #050000;
+    --line:   #3a0a0a;
+    --red:    #ff4d4d;
+    --red-dim:#8a2424;
+    --text:   #ffffff;
+    --text-dim:#a8a8a8;
+    --mono: 'IBM Plex Mono', 'Courier New', monospace;
+  }
+
+  *{ box-sizing:border-box; }
+  html,body{ margin:0; padding:0; }
+
+  body{
+    background:var(--bg);
+    color:var(--text);
+    font-family:var(--mono);
+    min-height:100vh;
+  }
+
+  /* ---------- kayralrics.com ---------- */
+  .header{
+    border-bottom:1px solid var(--line);
+    padding:40px 32px 30px;
+  }
+  h1{
+    font-size:22px;
+    font-weight:600;
+    letter-spacing:0.02em;
+    margin:0 0 8px;
+    color:var(--text);
+  }
+  h1 span{ color:var(--red); }
+  .sub{
+    color:var(--text-dim);
+    font-size:13px;
+    max-width:560px;
+    line-height:1.6;
+    margin:0;
+  }
+
+  /* ---------- kayralrics.com ---------- */
+  .toolbar{
+    padding:18px 32px;
+    border-bottom:1px solid var(--line);
+    display:flex;
+    gap:12px;
+    align-items:center;
+    flex-wrap:wrap;
+  }
+  .toolbar button{
+    font-family:var(--mono);
+    font-size:11px;
+    background:transparent;
+    border:1px solid var(--line);
+    color:var(--text-dim);
+    padding:8px 14px;
+    cursor:pointer;
+  }
+  .toolbar button:hover{ border-color:var(--red-dim); color:var(--red); }
+
+  .board{
+    padding:0 32px 80px;
+    display:grid;
+    grid-template-columns:repeat(auto-fit, minmax(300px, 1fr));
+  }
+
+  .card{
+    border:1px solid var(--line);
+    margin:-1px 0 0 -1px;
+    display:flex;
+    flex-direction:column;
+    min-width:0;
+    background:var(--bg);
+  }
+  .card-base{
+    border-color:var(--red-dim);
+  }
+
+  .card-head{
+    display:flex;
+    align-items:baseline;
+    justify-content:space-between;
+    padding:12px 14px 10px;
+    border-bottom:1px solid var(--line);
+  }
+  .card-head .name{
+    font-size:12px;
+    font-weight:600;
+    color:var(--text);
+    text-transform:uppercase;
+    letter-spacing:0.05em;
+  }
+  .card-head .tag{
+    font-size:10px;
+    color:var(--text-dim);
+  }
+
+  textarea{
+    background:transparent;
+    border:none;
+    outline:none;
+    resize:vertical;
+    color:var(--text);
+    font-family:var(--mono);
+    font-size:13px;
+    line-height:1.55;
+    padding:12px 14px;
+    min-height:110px;
+    width:100%;
+  }
+  textarea::placeholder{ color:var(--text-dim); opacity:0.5; }
+  textarea::-webkit-scrollbar{ width:6px; }
+  textarea::-webkit-scrollbar-thumb{ background:var(--line); }
+
+  .card-foot{
+    display:flex;
+    gap:6px;
+    padding:8px 12px 12px;
+  }
+
+  button.copy, button.clearone{
+    font-family:var(--mono);
+    font-size:10px;
+    letter-spacing:0.03em;
+    text-transform:uppercase;
+    background:transparent;
+    border:1px solid var(--line);
+    color:var(--text-dim);
+    padding:7px 10px;
+    cursor:pointer;
+  }
+  button.copy:hover{ border-color:var(--red-dim); color:var(--red); }
+  button.clearone{ border-color:var(--red-dim); color:var(--red); }
+  button.clearone:hover{ background:var(--red); color:#000; border-color:var(--red); }
+  button.copied{ border-color:var(--red) !important; color:var(--red) !important; }
+  button.copy-error{ background:var(--red) !important; border-color:var(--red) !important; color:#000000 !important; }
+
+  .err{
+    font-size:10px;
+    color:var(--red);
+    padding:0 14px 10px;
+    display:none;
+  }
+  .err.show{ display:block; }
+
+  footer{
+    border-top:1px solid var(--line);
+    padding:18px 32px;
+    color:var(--text-dim);
+    font-size:11px;
+  }
+
+  @media (max-width:640px){
+    .header{ padding:28px 18px 22px; }
+    .toolbar{ padding:14px 18px; }
+    .board{ padding:0 18px 60px; }
+    footer{ padding:16px 18px; }
+  }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <h1>Decoder<span>.</span></h1>
+  <p class="sub">Nothing you write is sent to any server - kayralrics.com</p>
+</div>
+
+<div class="toolbar">
+  <span style="flex:1"></span>
+  <button id="clearAll">CLEAR</button>
+</div>
+
+<div class="board" id="board"></div>
+
+<footer>
+  kayralrics.net
+</footer>
+
+<script>
+/* ======================= kayralrics.com ======================= */
+function toBytes(str){ return new TextEncoder().encode(str); }
+function fromBytes(bytes){ return new TextDecoder('utf-8', {fatal:false}).decode(bytes); }
+
+/* ---- kayralrics.net ---- */
+function bytesToBinary(bytes){ return Array.from(bytes).map(b => b.toString(2).padStart(8,'0')).join(' '); }
+function binaryToBytes(str){
+  const tokens = str.trim().split(/\s+/).filter(Boolean);
+  return new Uint8Array(tokens.map(t=>{
+    if(!/^[01]{1,8}$/.test(t)) throw new Error('invalid binary token');
+    return parseInt(t,2);
+  }));
+}
+
+/* ---- kayralrics.com ---- */
+function bytesToHex(bytes){ return Array.from(bytes).map(b=>b.toString(16).padStart(2,'0')).join(' '); }
+function hexToBytes(str){
+  const clean = str.trim().replace(/0x/gi,'').replace(/[^0-9a-fA-F]/g,'');
+  if(clean.length === 0) return new Uint8Array();
+  if(clean.length % 2 !== 0) throw new Error('odd-length hex string');
+  const bytes = new Uint8Array(clean.length/2);
+  for(let i=0;i<clean.length;i+=2) bytes[i/2] = parseInt(clean.substr(i,2),16);
+  return bytes;
+}
+
+/* ---- kayralrics.com ---- */
+function bytesToDecimal(bytes){ return Array.from(bytes).join(' '); }
+function decimalToBytes(str){
+  const tokens = str.trim().split(/\s+/).filter(Boolean);
+  return new Uint8Array(tokens.map(t=>{
+    const n = Number(t);
+    if(!Number.isInteger(n) || n<0 || n>255) throw new Error('value out of 0-255 range');
+    return n;
+  }));
+}
+function bytesToOctal(bytes){ return Array.from(bytes).map(b=>b.toString(8).padStart(3,'0')).join(' '); }
+function octalToBytes(str){
+  const tokens = str.trim().split(/\s+/).filter(Boolean);
+  return new Uint8Array(tokens.map(t=>{
+    if(!/^[0-7]{1,3}$/.test(t)) throw new Error('invalid octal digit');
+    const n = parseInt(t,8);
+    if(n>255) throw new Error('value out of 0-377 range');
+    return n;
+  }));
+}
+
+/* ---- kayralrics.com ---- */
+function base16Encode(bytes){ return Array.from(bytes).map(b=>b.toString(16).padStart(2,'0').toUpperCase()).join(''); }
+function base16Decode(str){
+  const clean = str.trim().toUpperCase().replace(/[^0-9A-F]/g,'');
+  if(clean.length === 0) return new Uint8Array();
+  if(clean.length % 2 !== 0) throw new Error('odd-length base16 string');
+  const bytes = new Uint8Array(clean.length/2);
+  for(let i=0;i<clean.length;i+=2) bytes[i/2] = parseInt(clean.substr(i,2),16);
+  return bytes;
+}
+
+/* ---- kayralrics.com ---- */
+const B32_ALPHA = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567';
+function base32Encode(bytes){
+  let bits = '';
+  bytes.forEach(b => bits += b.toString(2).padStart(8,'0'));
+  let out = '';
+  for(let i=0;i<bits.length;i+=5){
+    let chunk = bits.substr(i,5);
+    if(chunk.length<5) chunk = chunk.padEnd(5,'0');
+    out += B32_ALPHA[parseInt(chunk,2)];
+  }
+  while(out.length % 8 !== 0) out += '=';
+  return out;
+}
+function base32Decode(str){
+  const clean = str.trim().toUpperCase().replace(/=+$/,'').replace(/\s+/g,'');
+  let bits = '';
+  for(const ch of clean){
+    const idx = B32_ALPHA.indexOf(ch);
+    if(idx === -1) throw new Error('invalid base32 character: '+ch);
+    bits += idx.toString(2).padStart(5,'0');
+  }
+  const byteCount = Math.floor(bits.length/8);
+  const bytes = new Uint8Array(byteCount);
+  for(let i=0;i<byteCount;i++) bytes[i] = parseInt(bits.substr(i*8,8),2);
+  return bytes;
+}
+
+/* ---- kayralrics.com ---- */
+function base36Encode(bytes){
+  if(bytes.length===0) return '';
+  let num = 0n;
+  for(const b of bytes) num = num*256n + BigInt(b);
+  return num.toString(36).toUpperCase();
+}
+function base36Decode(str){
+  str = str.trim();
+  if(str==='') return new Uint8Array();
+  let num = 0n;
+  for(const c of str.toLowerCase()){
+    const v = '0123456789abcdefghijklmnopqrstuvwxyz'.indexOf(c);
+    if(v===-1) throw new Error('invalid base36 character: '+c);
+    num = num*36n + BigInt(v);
+  }
+  const bytes = [];
+  if(num === 0n) bytes.push(0);
+  while(num>0n){ bytes.unshift(Number(num % 256n)); num/=256n; }
+  return new Uint8Array(bytes);
+}
+
+/* ---- kayralrics.com ---- */
+const B58_ALPHA = '123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz';
+function base58Encode(bytes){
+  if(bytes.length === 0) return '';
+  let digits = [0];
+  for(let i=0;i<bytes.length;i++){
+    let carry = bytes[i];
+    for(let j=0;j<digits.length;j++){
+      carry += digits[j] << 8;
+      digits[j] = carry % 58;
+      carry = Math.floor(carry/58);
+    }
+    while(carry>0){ digits.push(carry%58); carry=Math.floor(carry/58); }
+  }
+  let zeros = 0;
+  while(zeros < bytes.length-1 && bytes[zeros]===0) zeros++;
+  let result = '1'.repeat(zeros);
+  for(let i=digits.length-1;i>=0;i--) result += B58_ALPHA[digits[i]];
+  return result;
+}
+function base58Decode(str){
+  str = str.trim();
+  if(str==='') return new Uint8Array();
+  let bytes = [0];
+  for(let i=0;i<str.length;i++){
+    const value = B58_ALPHA.indexOf(str[i]);
+    if(value === -1) throw new Error('invalid base58 character: '+str[i]);
+    let carry = value;
+    for(let j=0;j<bytes.length;j++){
+      carry += bytes[j]*58;
+      bytes[j] = carry & 0xff;
+      carry >>= 8;
+    }
+    while(carry>0){ bytes.push(carry&0xff); carry>>=8; }
+  }
+  let zeros = 0;
+  while(zeros < str.length-1 && str[zeros]==='1') zeros++;
+  const result = new Uint8Array(zeros + bytes.length);
+  for(let i=0;i<zeros;i++) result[i]=0;
+  for(let i=0;i<bytes.length;i++) result[zeros+i] = bytes[bytes.length-1-i];
+  return result;
+}
+
+/* ---- kayralrics.com ---- */
+function base64Encode(bytes){
+  let bin = '';
+  bytes.forEach(b=> bin += String.fromCharCode(b));
+  return btoa(bin);
+}
+function base64Decode(str){
+  const clean = str.trim().replace(/\s+/g,'');
+  const bin = atob(clean);
+  const bytes = new Uint8Array(bin.length);
+  for(let i=0;i<bin.length;i++) bytes[i] = bin.charCodeAt(i);
+  return bytes;
+}
+function base64urlEncode(bytes){
+  return base64Encode(bytes).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');
+}
+function base64urlDecode(str){
+  let clean = str.trim().replace(/-/g,'+').replace(/_/g,'/');
+  while(clean.length % 4 !== 0) clean += '=';
+  return base64Decode(clean);
+}
+
+/* ---- kayralrics.com ---- */
+function base85Encode(bytes){
+  if(bytes.length === 0) return '';
+  let out = '';
+  let i = 0;
+  while(i < bytes.length){
+    const remaining = bytes.length - i;
+    const groupLen = Math.min(4, remaining);
+    let b0=bytes[i]||0, b1=bytes[i+1]||0, b2=bytes[i+2]||0, b3=bytes[i+3]||0;
+    let n = ((b0<<24)|(b1<<16)|(b2<<8)|b3) >>> 0;
+    let chunk = '';
+    for(let j=0;j<5;j++){
+      chunk = String.fromCharCode(33 + (n % 85)) + chunk;
+      n = Math.floor(n/85);
+    }
+    if(groupLen < 4) chunk = chunk.slice(0, groupLen+1);
+    out += chunk;
+    i += 4;
+  }
+  return out;
+}
+function base85Decode(str){
+  str = str.trim();
+  if(str === '') return new Uint8Array();
+  const bytes = [];
+  let i = 0;
+  while(i < str.length){
+    const remaining = str.length - i;
+    const groupLen = Math.min(5, remaining);
+    let chars = str.slice(i, i+groupLen);
+    const realByteCount = groupLen - 1;
+    while(chars.length < 5) chars += 'u';
+    let n = 0;
+    for(let j=0;j<5;j++){
+      const code = chars.charCodeAt(j) - 33;
+      if(code<0||code>84) throw new Error('invalid base85 character');
+      n = n*85 + code;
+    }
+    const b0=(n>>>24)&0xff, b1=(n>>>16)&0xff, b2=(n>>>8)&0xff, b3=n&0xff;
+    if(groupLen === 5) bytes.push(b0,b1,b2,b3);
+    else bytes.push(...[b0,b1,b2,b3].slice(0, realByteCount));
+    i += 5;
+  }
+  return new Uint8Array(bytes);
+}
+
+/* ---- kayralrics.com ---- */
+function rot13(str){
+  return str.replace(/[a-zA-Z]/g, c=>{
+    const base = c <= 'Z' ? 65 : 97;
+    return String.fromCharCode((c.charCodeAt(0)-base+13)%26 + base);
+  });
+}
+function rot47(str){
+  return str.replace(/[!-~]/g, c=>{
+    return String.fromCharCode(33 + ((c.charCodeAt(0) - 33 + 47) % 94));
+  });
+}
+
+/* ---- kayralrics.com ---- */
+function caesarShift(str, shift){
+  shift = ((shift % 26) + 26) % 26;
+  return str.replace(/[a-zA-Z]/g, c=>{
+    const base = c <= 'Z' ? 65 : 97;
+    return String.fromCharCode((c.charCodeAt(0)-base+shift)%26 + base);
+  });
+}
+
+/* ---- kayralrics.com ---- */
+function atbashEncode(str){
+  return str.replace(/[a-zA-Z]/g, c=>{
+    if(c >= 'a' && c <= 'z') return String.fromCharCode(122 - (c.charCodeAt(0)-97));
+    return String.fromCharCode(90 - (c.charCodeAt(0)-65));
+  });
+}
+
+/* ---- kayralrics.com ---- */
+const VIG_KEY = 'KEY';
+function vigenere(str, decrypt){
+  const key = VIG_KEY;
+  let ki = 0;
+  return str.replace(/[a-zA-Z]/g, c=>{
+    const base = c<='Z' ? 65:97;
+    const k = key.charCodeAt(ki % key.length) - 65;
+    ki++;
+    const shift = decrypt ? -k : k;
+    return String.fromCharCode((((c.charCodeAt(0)-base+shift)%26)+26)%26 + base);
+  });
+}
+
+/* ---- kayralrics.com ---- */
+const RAIL_COUNT = 3;
+function railFenceEncode(str){
+  const rails = RAIL_COUNT;
+  const fence = Array.from({length:rails}, ()=>[]);
+  let rail=0, dir=1;
+  for(const ch of str){
+    fence[rail].push(ch);
+    rail += dir;
+    if(rail===rails){ rail=rails-2; dir=-1; }
+    else if(rail===-1){ rail=1; dir=1; }
+  }
+  return fence.map(r=>r.join('')).join('');
+}
+function railFenceDecode(str){
+  const rails = RAIL_COUNT;
+  const len = str.length;
+  const pattern = [];
+  let rail=0, dir=1;
+  for(let i=0;i<len;i++){
+    pattern.push(rail);
+    rail+=dir;
+    if(rail===rails){ rail=rails-2; dir=-1; }
+    else if(rail===-1){ rail=1; dir=1; }
+  }
+  const railCounts = Array(rails).fill(0);
+  pattern.forEach(r=>railCounts[r]++);
+  const railChars = [];
+  let pos = 0;
+  for(let r=0;r<rails;r++){
+    railChars.push(str.slice(pos, pos+railCounts[r]).split(''));
+    pos += railCounts[r];
+  }
+  const railPos = Array(rails).fill(0);
+  let result = '';
+  for(let i=0;i<len;i++){
+    const r = pattern[i];
+    result += railChars[r][railPos[r]++];
+  }
+  return result;
+}
+
+/* ---- kayralrics.com ---- */
+const MORSE_MAP = {
+  'A':'.-','B':'-...','C':'-.-.','D':'-..','E':'.','F':'..-.','G':'--.','H':'....',
+  'I':'..','J':'.---','K':'-.-','L':'.-..','M':'--','N':'-.','O':'---','P':'.--.',
+  'Q':'--.-','R':'.-.','S':'...','T':'-','U':'..-','V':'...-','W':'.--','X':'-..-',
+  'Y':'-.--','Z':'--..',
+  '0':'-----','1':'.----','2':'..---','3':'...--','4':'....-','5':'.....',
+  '6':'-....','7':'--...','8':'---..','9':'----.',
+  '.':'.-.-.-', ',':'--..--', '?':'..--..', "'":'.----.', '!':'-.-.--',
+  '/':'-..-.', '(':'-.--.', ')':'-.--.-', '&':'.-...', ':':'---...',
+  ';':'-.-.-.', '=':'-...-', '+':'.-.-.', '-':'-....-', '_':'..--.-',
+  '"':'.-..-.', '$':'...-..-', '@':'.--.-.'
+};
+const MORSE_REV = Object.fromEntries(Object.entries(MORSE_MAP).map(([k,v])=>[v,k]));
+function morseEncode(str){
+  return str.toUpperCase().split('').map(ch=>{
+    if(ch === ' ') return '/';
+    return MORSE_MAP[ch] !== undefined ? MORSE_MAP[ch] : '';
+  }).filter(x=>x!=='').join(' ');
+}
+function morseDecode(str){
+  return str.trim().split(/\s+/).map(tok=>{
+    if(tok === '/') return ' ';
+    if(!(tok in MORSE_REV)) throw new Error('unrecognized morse token: '+tok);
+    return MORSE_REV[tok];
+  }).join('');
+}
+
+/* ---- kayralrics.com ---- */
+const NATO = {A:'Alfa',B:'Bravo',C:'Charlie',D:'Delta',E:'Echo',F:'Foxtrot',G:'Golf',H:'Hotel',I:'India',J:'Juliett',K:'Kilo',L:'Lima',M:'Mike',N:'November',O:'Oscar',P:'Papa',Q:'Quebec',R:'Romeo',S:'Sierra',T:'Tango',U:'Uniform',V:'Victor',W:'Whiskey',X:'Xray',Y:'Yankee',Z:'Zulu','0':'Zero','1':'One','2':'Two','3':'Three','4':'Four','5':'Five','6':'Six','7':'Seven','8':'Eight','9':'Nine'};
+const NATO_REV = Object.fromEntries(Object.entries(NATO).map(([k,v])=>[v.toUpperCase(),k]));
+function natoEncode(str){
+  return str.toUpperCase().split('').map(c=>{
+    if(c===' ') return '/';
+    return NATO[c] !== undefined ? NATO[c] : c;
+  }).join(' ');
+}
+function natoDecode(str){
+  return str.trim().split(/\s+/).map(tok=>{
+    if(tok==='/') return ' ';
+    const up = tok.toUpperCase();
+    if(NATO_REV[up] !== undefined) return NATO_REV[up];
+    throw new Error('unrecognized word: '+tok);
+  }).join('');
+}
+
+/* ---- kayralrics.com ---- */
+const BACON_MAP = {
+  A:'AAAAA',B:'AAAAB',C:'AAABA',D:'AAABB',E:'AABAA',F:'AABAB',G:'AABBA',H:'AABBB',
+  I:'ABAAA',J:'ABAAA',K:'ABAAB',L:'ABABA',M:'ABABB',N:'ABBAA',O:'ABBAB',P:'ABBBA',
+  Q:'ABBBB',R:'BAAAA',S:'BAAAB',T:'BAABA',U:'BAABB',V:'BAABB',W:'BABAA',X:'BABAB',
+  Y:'BABBA',Z:'BABBB'
+};
+const BACON_REV = {};
+Object.entries(BACON_MAP).forEach(([k,v])=>{ if(!BACON_REV[v]) BACON_REV[v]=k; });
+function baconEncode(str){
+  return str.toUpperCase().split('').map(c=>{
+    if(c===' ') return '/';
+    return BACON_MAP[c] || '';
+  }).filter(x=>x!=='').join(' ');
+}
+function baconDecode(str){
+  return str.trim().split(/\s+/).map(tok=>{
+    if(tok==='/') return ' ';
+    if(!BACON_REV[tok]) throw new Error('unknown bacon group: '+tok);
+    return BACON_REV[tok];
+  }).join('');
+}
+
+/* ---- kayralrics.com ---- */
+const TAP_GRID = ['ABCDE','FGHIK','LMNOP','QRSTU','VWXYZ'];
+function tapEncode(str){
+  return str.toUpperCase().replace(/K/g,'C').split('').map(c=>{
+    if(c===' ') return '/';
+    for(let r=0;r<5;r++){
+      const col = TAP_GRID[r].indexOf(c);
+      if(col!==-1) return `${r+1}.${col+1}`;
+    }
+    return '';
+  }).filter(x=>x!=='').join(' ');
+}
+function tapDecode(str){
+  return str.trim().split(/\s+/).map(tok=>{
+    if(tok==='/') return ' ';
+    const parts = tok.split('.').map(Number);
+    const r=parts[0], c=parts[1];
+    if(!r||!c||r<1||r>5||c<1||c>5) throw new Error('bad tap code group: '+tok);
+    return TAP_GRID[r-1][c-1];
+  }).join('');
+}
+
+/* ---- kayralrics.com ---- */
+const BRAILLE_MAP = {
+  a:'⠁',b:'⠃',c:'⠉',d:'⠙',e:'⠑',f:'⠋',g:'⠛',h:'⠓',i:'⠊',j:'⠚',
+  k:'⠅',l:'⠇',m:'⠍',n:'⠝',o:'⠕',p:'⠏',q:'⠟',r:'⠗',s:'⠎',t:'⠞',
+  u:'⠥',v:'⠧',w:'⠺',x:'⠭',y:'⠽',z:'⠵',' ':'⠀','.':'⠲',',':'⠂'
+};
+const BRAILLE_REV = Object.fromEntries(Object.entries(BRAILLE_MAP).map(([k,v])=>[v,k]));
+function brailleEncode(str){
+  return str.toLowerCase().split('').map(c=>{
+    if(BRAILLE_MAP[c]===undefined) throw new Error('no braille mapping for character: '+JSON.stringify(c));
+    return BRAILLE_MAP[c];
+  }).join('');
+}
+function brailleDecode(str){
+  return str.split('').map(c=>{
+    if(BRAILLE_REV[c]===undefined) throw new Error('unrecognized braille character');
+    return BRAILLE_REV[c];
+  }).join('');
+}
+
+/* ---- kayralrics.com ---- */
+function urlEncode(str){ return encodeURIComponent(str).replace(/%20/g,'+'); }
+function urlDecode(str){ return decodeURIComponent(str.replace(/\+/g,' ')); }
+
+function htmlEncode(str){
+  return str.replace(/[\u00A0-\u9999<>&'"]/g, c => '&#'+c.charCodeAt(0)+';');
+}
+function htmlDecode(str){
+  const txt = document.createElement('textarea');
+  txt.innerHTML = str;
+  return txt.value;
+}
+
+function qpEncode(bytes){
+  let out = '';
+  for(const b of bytes){
+    if((b>=33 && b<=126 && b!==61) || b===32) out += String.fromCharCode(b);
+    else out += '=' + b.toString(16).toUpperCase().padStart(2,'0');
+  }
+  return out;
+}
+function qpDecode(str){
+  const bytes = [];
+  for(let i=0;i<str.length;i++){
+    if(str[i]==='='){
+      const hex = str.substr(i+1,2);
+      if(!/^[0-9A-Fa-f]{2}$/.test(hex)) throw new Error('malformed quoted-printable escape');
+      bytes.push(parseInt(hex,16));
+      i+=2;
+    } else {
+      bytes.push(str.charCodeAt(i));
+    }
+  }
+  return new Uint8Array(bytes);
+}
+
+/* ---- kayralrics.com ---- */
+function leetEncode(str){
+  const map = {a:'4',e:'3',i:'1',o:'0',s:'5',t:'7',A:'4',E:'3',I:'1',O:'0',S:'5',T:'7'};
+  return str.split('').map(c=> map[c] !== undefined ? map[c] : c).join('');
+}
+function leetDecode(str){
+  const map = {'4':'a','3':'e','1':'i','0':'o','5':'s','7':'t'};
+  return str.split('').map(c=> map[c] !== undefined ? map[c] : c).join('');
+}
+function reverseText(str){ return str.split('').reverse().join(''); }
+
+/* ---- kayralrics.com ---- */
+function unicodePoints(str){
+  return Array.from(str).map(ch=>{
+    const cp = ch.codePointAt(0);
+    return 'U+'+cp.toString(16).toUpperCase().padStart(4,'0');
+  }).join(' ');
+}
+
+/* ======================= kayralrics.com ======================= */
+const CARDS = [
+  { id:'text',     name:'Text (UTF-8)', tag:'source', isBase:true },
+
+  { id:'binary',   name:'Binary', tag:'base 2', type:'bytes', enc: bytesToBinary, dec: binaryToBytes },
+  { id:'octal',    name:'Octal', tag:'base 8', type:'bytes', enc: bytesToOctal, dec: octalToBytes },
+  { id:'decimal',  name:'Decimal', tag:'base 10', type:'bytes', enc: bytesToDecimal, dec: decimalToBytes },
+  { id:'hex',      name:'Hexadecimal', tag:'base 16, spaced', type:'bytes', enc: bytesToHex, dec: hexToBytes },
+  { id:'base16',   name:'Base16', tag:'base 16, packed', type:'bytes', enc: base16Encode, dec: base16Decode },
+  { id:'base32',   name:'Base32', tag:'rfc 4648', type:'bytes', enc: base32Encode, dec: base32Decode },
+  { id:'base36',   name:'Base36', tag:'numeric+alpha', type:'bytes', enc: base36Encode, dec: base36Decode },
+  { id:'base58',   name:'Base58', tag:'bitcoin alphabet', type:'bytes', enc: base58Encode, dec: base58Decode },
+  { id:'base64',   name:'Base64', tag:'rfc 4648', type:'bytes', enc: base64Encode, dec: base64Decode },
+  { id:'base64url',name:'Base64 (URL-safe)', tag:'rfc 4648 §5', type:'bytes', enc: base64urlEncode, dec: base64urlDecode },
+  { id:'base85',   name:'Base85', tag:'ascii85-style', type:'bytes', enc: base85Encode, dec: base85Decode },
+
+  { id:'rot13',    name:'ROT13', tag:'caesar +13', type:'text', enc: rot13, dec: rot13 },
+  { id:'rot47',    name:'ROT47', tag:'printable ascii', type:'text', enc: rot47, dec: rot47 },
+  { id:'caesar',   name:'Caesar Cipher', tag:'shift +3', type:'text', enc: s=>caesarShift(s,3), dec: s=>caesarShift(s,-3) },
+  { id:'atbash',   name:'Atbash', tag:'mirror substitution', type:'text', enc: atbashEncode, dec: atbashEncode },
+  { id:'vigenere', name:'Vigenère Cipher', tag:'key: KEY', type:'text', enc: s=>vigenere(s,false), dec: s=>vigenere(s,true) },
+  { id:'railfence',name:'Rail Fence', tag:'3 rails', type:'text', enc: railFenceEncode, dec: railFenceDecode },
+
+  { id:'morse',    name:'Morse Code', tag:'.-- / --.', type:'text', enc: morseEncode, dec: morseDecode },
+  { id:'nato',     name:'NATO Alphabet', tag:'phonetic spelling', type:'text', enc: natoEncode, dec: natoDecode },
+  { id:'bacon',    name:'Bacon Cipher', tag:'24-letter, A/B', type:'text', enc: baconEncode, dec: baconDecode },
+  { id:'tapcode',  name:'Tap Code', tag:'5×5 polybius grid', type:'text', enc: tapEncode, dec: tapDecode },
+  { id:'braille',  name:'Braille', tag:'basic latin', type:'text', enc: brailleEncode, dec: brailleDecode },
+
+  { id:'url',      name:'URL Encoding', tag:'percent-encoding', type:'text', enc: urlEncode, dec: urlDecode },
+  { id:'html',     name:'HTML Entities', tag:'numeric entities', type:'text', enc: htmlEncode, dec: htmlDecode },
+  { id:'qp',       name:'Quoted-Printable', tag:'mime', type:'bytes', enc: qpEncode, dec: qpDecode },
+
+  { id:'leet',     name:'Leet Speak', tag:'1337', type:'text', enc: leetEncode, dec: leetDecode },
+  { id:'reverse',  name:'Reversed Text', tag:'mirror', type:'text', enc: reverseText, dec: reverseText },
+  { id:'unicode',  name:'Unicode Code Points', tag:'u+xxxx, one-way', type:'text', enc: unicodePoints, dec: null },
+];
+
+/* ======================= kayralrics.com ======================= */
+const board = document.getElementById('board');
+
+function makeCard(cfg){
+  const card = document.createElement('div');
+  card.className = 'card' + (cfg.isBase ? ' card-base' : '');
+  card.dataset.id = cfg.id;
+
+  card.innerHTML = `
+    <div class="card-head">
+      <span class="name">${cfg.name}</span>
+      <span class="tag">${cfg.tag}</span>
+    </div>
+    <textarea id="ta-${cfg.id}" placeholder="${cfg.isBase ? 'type here…' : 'result appears here…'}"></textarea>
+    <div class="err" id="err-${cfg.id}"></div>
+    <div class="card-foot">
+      <button class="copy" data-target="ta-${cfg.id}">Copy</button>
+      ${cfg.isBase ? '<button class="clearone" data-target="ta-' + cfg.id + '">Clear</button>' : ''}
+    </div>
+  `;
+  board.appendChild(card);
+}
+CARDS.forEach(makeCard);
+
+/* ======================= kayralrics.com ======================= */
+const baseTa = document.getElementById('ta-text');
+let isUpdating = false;
+
+function showError(id, msg){
+  const el = document.getElementById('err-'+id);
+  if(!el) return;
+  if(msg){ el.textContent = '⚠ ' + msg; el.classList.add('show'); }
+  else { el.textContent=''; el.classList.remove('show'); }
+}
+
+function renderFromBase(){
+  if(isUpdating) return;
+  isUpdating = true;
+  const text = baseTa.value;
+  const bytes = toBytes(text);
+
+  CARDS.forEach(cfg=>{
+    if(cfg.isBase) return;
+    const ta = document.getElementById('ta-'+cfg.id);
+    showError(cfg.id, null);
+    try{
+      ta.value = text === '' ? '' : (cfg.type==='bytes' ? cfg.enc(bytes) : cfg.enc(text));
+    }catch(e){
+      ta.value = '';
+      showError(cfg.id, 'could not convert');
+    }
+  });
+  isUpdating = false;
+}
+
+function renderFromCard(sourceId){
+  if(isUpdating) return;
+  const cfg = CARDS.find(c=>c.id===sourceId);
+  if(!cfg || cfg.isBase) return;
+  const ta = document.getElementById('ta-'+sourceId);
+  const val = ta.value;
+
+  if(val === ''){
+    isUpdating = true;
+    baseTa.value = '';
+    CARDS.forEach(c=>{ if(!c.isBase && c.id!==sourceId){ document.getElementById('ta-'+c.id).value=''; showError(c.id,null); } });
+    isUpdating = false;
+    return;
+  }
+
+  if(cfg.dec === null){
+    showError(sourceId, 'this format is one-way and cannot be decoded back');
+    return;
+  }
+
+  showError(sourceId, null);
+  isUpdating = true;
+  try{
+    let newText;
+    if(cfg.type === 'bytes'){
+      const bytes = cfg.dec(val);
+      newText = fromBytes(bytes);
+    } else {
+      newText = cfg.dec(val);
+    }
+    baseTa.value = newText;
+
+    const bytes2 = toBytes(newText);
+    CARDS.forEach(c=>{
+      if(c.isBase || c.id===sourceId) return;
+      const t = document.getElementById('ta-'+c.id);
+      showError(c.id, null);
+      try{
+        t.value = newText === '' ? '' : (c.type==='bytes' ? c.enc(bytes2) : c.enc(newText));
+      }catch(e){
+        t.value = '';
+        showError(c.id, 'could not convert');
+      }
+    });
+  }catch(e){
+    showError(sourceId, 'invalid input — could not decode');
+  }
+  isUpdating = false;
+}
+
+baseTa.addEventListener('input', renderFromBase);
+CARDS.forEach(cfg=>{
+  if(cfg.isBase) return;
+  document.getElementById('ta-'+cfg.id).addEventListener('input', ()=>renderFromCard(cfg.id));
+});
+
+/* ======================= kayralrics.net ======================= */
+function flashButton(btn, label, isError){
+  const original = btn.textContent;
+  btn.textContent = label;
+  btn.classList.toggle('copied', !isError);
+  btn.classList.toggle('copy-error', !!isError);
+  setTimeout(()=>{ btn.textContent = original; btn.classList.remove('copied','copy-error'); }, 1200);
+}
+
+function legacyCopy(text){
+  // kayralrics.net
+  const helper = document.createElement('textarea');
+  helper.value = text;
+  helper.style.position = 'fixed';
+  helper.style.top = '-1000px';
+  helper.style.opacity = '0';
+  document.body.appendChild(helper);
+  helper.focus();
+  helper.select();
+  let ok = false;
+  try{ ok = document.execCommand('copy'); }catch(e){ ok = false; }
+  document.body.removeChild(helper);
+  return ok;
+}
+
+function copyText(text, btn){
+  if(navigator.clipboard && navigator.clipboard.writeText){
+    navigator.clipboard.writeText(text).then(()=>{
+      flashButton(btn, 'Copied', false);
+    }).catch(()=>{
+      const ok = legacyCopy(text);
+      flashButton(btn, ok ? 'Copied' : 'Failed — select manually', !ok);
+    });
+  } else {
+    const ok = legacyCopy(text);
+    flashButton(btn, ok ? 'Copied' : 'Failed — select manually', !ok);
+  }
+}
+
+document.addEventListener('click', (e)=>{
+  if(e.target.matches('.copy')){
+    const ta = document.getElementById(e.target.dataset.target);
+    copyText(ta.value, e.target);
+  }
+  if(e.target.matches('.clearone')){
+    baseTa.value = '';
+    renderFromBase();
+    baseTa.focus();
+  }
+});
+document.getElementById('clearAll').addEventListener('click', ()=>{
+  baseTa.value = '';
+  renderFromBase();
+});
+
+/* ======================= kayralrics.net ======================= */
+baseTa.value = 'kayralrics.com';
+renderFromBase();
+</script>
+</body>
+</html>
