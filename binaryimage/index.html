@@ -1,0 +1,300 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>kayralrics.xyz</title>
+
+<style>
+*{
+    box-sizing:border-box;
+    margin:0;
+    padding:0;
+    font-family:Consolas, monospace;
+}
+body{
+    background:#000;
+    color:#fff;
+    padding:30px;
+}
+h1{
+    text-align:center;
+    margin-bottom:30px;
+    font-size:32px;
+}
+.grid{
+    display:grid;
+    grid-template-columns:repeat(auto-fit,minmax(500px,1fr));
+    gap:20px;
+}
+.card{
+    border:1px solid #ff0000;
+    background:#000;
+}
+.title{
+    padding:15px;
+    border-bottom:1px solid #ff0000;
+    font-weight:bold;
+    font-size:18px;
+}
+.content{
+    padding:20px;
+}
+textarea{
+    width:100%;
+    height:350px;
+    background:#000;
+    color:#fff;
+    border:1px solid #ff0000;
+    padding:15px;
+    resize:vertical;
+    font-size:14px;
+}
+input[type=file]{
+    width:100%;
+    background:#000;
+    color:#fff;
+    border:1px solid #ff0000;
+    padding:12px;
+    margin-bottom:15px;
+}
+.buttons{
+    margin-top:15px;
+    display:flex;
+    gap:10px;
+    flex-wrap:wrap;
+}
+button{
+    background:#000;
+    color:#fff;
+    border:1px solid #ff0000;
+    padding:10px 20px;
+    cursor:pointer;
+}
+button:hover{
+    background:#111;
+}
+.preview{
+    min-height:350px;
+    border:1px solid #ff0000;
+    display:flex;
+    justify-content:center;
+    align-items:center;
+    overflow:auto;
+    padding:20px;
+}
+.preview img{
+    max-width:100%;
+    max-height:700px;
+}
+.message{
+    color:#888;
+    text-align:center;
+}
+</style>
+</head>
+<body>
+
+<h1>Binary Image - kayralrics.xyz</h1>
+
+<div class="grid">
+
+<div class="card">
+<div class="title">Binary</div>
+<div class="content">
+
+<input type="file" id="file" accept="image/*">
+
+<textarea
+id="input"
+placeholder="Paste binary or upload image..."
+></textarea>
+
+<div class="buttons">
+
+<button onclick="imageToBinary()">
+Image → Binary
+</button>
+
+<button onclick="binaryToImage()">
+Binary → Image
+</button>
+
+<button onclick="clearAll()">
+Clear
+</button>
+
+<button onclick="copyText(this)">
+Copy
+</button>
+
+</div>
+
+</div>
+</div>
+
+<div class="card">
+<div class="title">Preview</div>
+<div class="content">
+
+<div id="preview" class="preview">
+<div class="message">
+Image preview will appear here.
+</div>
+</div>
+
+</div>
+</div>
+
+</div>
+
+<script>
+const input = document.getElementById("input");
+const preview = document.getElementById("preview");
+
+let currentMime = "image/png";
+
+function imageToBinary(){
+
+    const file =
+        document.getElementById("file")
+        .files[0];
+
+    if(!file){
+        alert("Select an image.");
+        return;
+    }
+
+    currentMime =
+        file.type || "image/png";
+
+    const reader =
+        new FileReader();
+
+    reader.onload = e => {
+
+        const bytes =
+            new Uint8Array(
+                e.target.result
+            );
+
+        const binary =
+            Array.from(bytes)
+            .map(b =>
+                b.toString(2)
+                 .padStart(8,"0")
+            )
+            .join(" ");
+
+        input.value = binary;
+
+        const img = new Image();
+        img.src =
+            URL.createObjectURL(file);
+
+        preview.innerHTML = "";
+        preview.appendChild(img);
+    };
+
+    reader.readAsArrayBuffer(file);
+}
+
+function binaryToImage(){
+
+    try{
+
+        const binary =
+            input.value
+                 .trim()
+                 .replace(/\s+/g," ");
+
+        if(!binary){
+            throw new Error();
+        }
+
+        const bytes =
+            binary
+            .split(" ")
+            .map(b => {
+
+                if(!/^[01]{8}$/.test(b)){
+                    throw new Error();
+                }
+
+                return parseInt(b,2);
+            });
+
+        const blob =
+            new Blob(
+                [new Uint8Array(bytes)],
+                {type: currentMime}
+            );
+
+        const url =
+            URL.createObjectURL(blob);
+
+        const img =
+            new Image();
+
+        img.onload = () => {
+            preview.innerHTML = "";
+            preview.appendChild(img);
+        };
+
+        img.onerror = () => {
+            preview.innerHTML =
+                '<div class="message">Invalid image data.</div>';
+        };
+
+        img.src = url;
+    }
+    catch{
+        preview.innerHTML =
+            '<div class="message">Invalid binary.</div>';
+    }
+}
+
+document.getElementById("file")
+.addEventListener(
+    "change",
+    imageToBinary
+);
+
+function clearAll(){
+
+    input.value = "";
+
+    document.getElementById("file")
+        .value = "";
+
+    preview.innerHTML =
+        '<div class="message">Image preview will appear here.</div>';
+}
+
+async function copyText(btn){
+
+    try{
+        await navigator.clipboard
+            .writeText(
+                input.value
+            );
+    }
+    catch{
+        input.select();
+        document.execCommand("copy");
+    }
+
+    const old =
+        btn.textContent;
+
+    btn.textContent =
+        "Copied!";
+
+    setTimeout(()=>{
+        btn.textContent = old;
+    },1500);
+}
+</script>
+
+</body>
+</html>

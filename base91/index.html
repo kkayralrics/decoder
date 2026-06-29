@@ -1,0 +1,276 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>kayralrics.com</title>
+
+<style>
+*{
+    box-sizing:border-box;
+    margin:0;
+    padding:0;
+    font-family:Consolas, monospace;
+}
+body{
+    background:#000;
+    color:#fff;
+    padding:30px;
+}
+h1{
+    text-align:center;
+    margin-bottom:30px;
+    font-size:32px;
+}
+.grid{
+    display:grid;
+    grid-template-columns:repeat(auto-fit,minmax(450px,1fr));
+    gap:20px;
+}
+.card{
+    border:1px solid #ff0000;
+    background:#000;
+}
+.title{
+    padding:15px;
+    border-bottom:1px solid #ff0000;
+    font-weight:bold;
+    font-size:18px;
+}
+.content{
+    padding:20px;
+}
+textarea{
+    width:100%;
+    height:300px;
+    background:#000;
+    color:#fff;
+    border:1px solid #ff0000;
+    padding:15px;
+    resize:vertical;
+    font-size:15px;
+}
+.buttons{
+    margin-top:15px;
+}
+button{
+    background:#000;
+    color:#fff;
+    border:1px solid #ff0000;
+    padding:10px 20px;
+    cursor:pointer;
+}
+button:hover{
+    background:#111;
+}
+</style>
+</head>
+<body>
+
+<h1>Base91 - kayralrics.xyz</h1>
+
+<div class="grid">
+
+<div class="card">
+<div class="title">Normal Text</div>
+<div class="content">
+
+<textarea id="plain" placeholder="Write normal text..."></textarea>
+
+<div class="buttons">
+<button onclick="copyText('plain',this)">Copy</button>
+</div>
+
+</div>
+</div>
+
+<div class="card">
+<div class="title">Base91 Text :>>></div>
+<div class="content">
+
+<textarea id="b91" placeholder="Write Base91..."></textarea>
+
+<div class="buttons">
+<button onclick="copyText('b91',this)">Copy</button>
+</div>
+
+</div>
+</div>
+
+</div>
+
+<script>
+const ALPHABET =
+'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789' +
+'!#$%&()*+,./:;<=>?@[]^_`{|}~"';
+
+const DEC = {};
+for(let i = 0; i < ALPHABET.length; i++){
+    DEC[ALPHABET[i]] = i;
+}
+
+function base91Encode(str){
+
+    const data =
+        new TextEncoder().encode(str);
+
+    let b = 0;
+    let n = 0;
+    let out = '';
+
+    for(const byte of data){
+
+        b |= byte << n;
+        n += 8;
+
+        if(n > 13){
+
+            let v = b & 8191;
+
+            if(v > 88){
+                b >>= 13;
+                n -= 13;
+            }else{
+                v = b & 16383;
+                b >>= 14;
+                n -= 14;
+            }
+
+            out += ALPHABET[v % 91];
+            out += ALPHABET[Math.floor(v / 91)];
+        }
+    }
+
+    if(n){
+        out += ALPHABET[b % 91];
+
+        if(n > 7 || b > 90){
+            out += ALPHABET[Math.floor(b / 91)];
+        }
+    }
+
+    return out;
+}
+
+function base91Decode(str){
+
+    let v = -1;
+    let b = 0;
+    let n = 0;
+    const out = [];
+
+    for(const c of str){
+
+        if(!(c in DEC)){
+            continue;
+        }
+
+        const d = DEC[c];
+
+        if(v < 0){
+            v = d;
+        }else{
+
+            v += d * 91;
+
+            b |= v << n;
+
+            n += (v & 8191) > 88
+                ? 13
+                : 14;
+
+            while(n >= 8){
+                out.push(b & 255);
+                b >>= 8;
+                n -= 8;
+            }
+
+            v = -1;
+        }
+    }
+
+    if(v >= 0){
+        out.push((b | (v << n)) & 255);
+    }
+
+    return new TextDecoder()
+        .decode(new Uint8Array(out));
+}
+
+const plain =
+    document.getElementById("plain");
+
+const b91 =
+    document.getElementById("b91");
+
+let updating = false;
+
+plain.addEventListener("input", () => {
+
+    if(updating) return;
+
+    updating = true;
+
+    try{
+        b91.value =
+            base91Encode(
+                plain.value
+            );
+    }catch{
+        b91.value = "";
+    }
+
+    updating = false;
+});
+
+b91.addEventListener("input", () => {
+
+    if(updating) return;
+
+    updating = true;
+
+    try{
+        plain.value =
+            base91Decode(
+                b91.value
+            );
+    }catch{
+        plain.value = "";
+    }
+
+    updating = false;
+});
+
+async function copyText(id, btn){
+
+    const text =
+        document.getElementById(id).value;
+
+    try{
+        await navigator.clipboard
+            .writeText(text);
+    }
+    catch{
+        const t =
+            document.getElementById(id);
+
+        t.select();
+        document.execCommand("copy");
+        window.getSelection()
+              .removeAllRanges();
+    }
+
+    const old =
+        btn.textContent;
+
+    btn.textContent =
+        "Copied!";
+
+    setTimeout(() => {
+        btn.textContent = old;
+    }, 1500);
+}
+</script>
+
+</body>
+</html>

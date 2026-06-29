@@ -1,0 +1,259 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>kayralrics.cc</title>
+
+<style>
+*{
+    box-sizing:border-box;
+    margin:0;
+    padding:0;
+    font-family:Consolas, monospace;
+}
+body{
+    background:#000;
+    color:#fff;
+    padding:30px;
+}
+h1{
+    text-align:center;
+    margin-bottom:30px;
+    font-size:32px;
+}
+.grid{
+    display:grid;
+    grid-template-columns:repeat(auto-fit,minmax(450px,1fr));
+    gap:20px;
+}
+.card{
+    border:1px solid #ff0000;
+    background:#000;
+}
+.title{
+    padding:15px;
+    border-bottom:1px solid #ff0000;
+    font-weight:bold;
+    font-size:18px;
+}
+.content{
+    padding:20px;
+}
+textarea{
+    width:100%;
+    height:300px;
+    background:#000;
+    color:#fff;
+    border:1px solid #ff0000;
+    padding:15px;
+    resize:vertical;
+    font-size:15px;
+}
+.buttons{
+    margin-top:15px;
+}
+button{
+    background:#000;
+    color:#fff;
+    border:1px solid #ff0000;
+    padding:10px 20px;
+    cursor:pointer;
+}
+button:hover{
+    background:#111;
+}
+</style>
+</head>
+<body>
+
+<h1>Base128 - kayralrics.com</h1>
+
+<div class="grid">
+
+<div class="card">
+<div class="title">Normal Text</div>
+<div class="content">
+
+<textarea id="plain" placeholder="Write normal text..."></textarea>
+
+<div class="buttons">
+<button onclick="copyText('plain',this)">
+Copy
+</button>
+</div>
+
+</div>
+</div>
+
+<div class="card">
+<div class="title">Base128 Text</div>
+<div class="content">
+
+<textarea id="b128" placeholder="Write Base128..."></textarea>
+
+<div class="buttons">
+<button onclick="copyText('b128',this)">
+Copy
+</button>
+</div>
+
+</div>
+</div>
+
+</div>
+
+<script>
+const ALPHABET =
+'0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz' +
+'!#$%&()*+,-./:;<=>?@[]^_{|}~' +
+'ÇĞİÖŞÜçğıöşüÄËÏÖÜäëïöüÀÁÂÃÅÆÈÉÊÌÍÎÑÒÓÔÕØÙÚÛÝàáâãåæèéêìíîñòóôõøùúûýÿ€£¥¢§¶';
+
+const DEC = {};
+for(let i = 0; i < ALPHABET.length; i++){
+    DEC[ALPHABET[i]] = i;
+}
+
+function encodeBase128(str){
+
+    const bytes =
+        new TextEncoder().encode(str);
+
+    let bits = '';
+
+    for(const b of bytes){
+        bits +=
+            b.toString(2)
+             .padStart(8,'0');
+    }
+
+    while(bits.length % 7){
+        bits += '0';
+    }
+
+    let out = '';
+
+    for(let i = 0; i < bits.length; i += 7){
+
+        const value =
+            parseInt(
+                bits.slice(i,i+7),
+                2
+            );
+
+        out += ALPHABET[value];
+    }
+
+    return out;
+}
+
+function decodeBase128(str){
+
+    let bits = '';
+
+    for(const c of str){
+
+        if(!(c in DEC))
+            continue;
+
+        bits +=
+            DEC[c]
+            .toString(2)
+            .padStart(7,'0');
+    }
+
+    const bytes = [];
+
+    for(let i = 0; i + 8 <= bits.length; i += 8){
+
+        bytes.push(
+            parseInt(
+                bits.slice(i,i+8),
+                2
+            )
+        );
+    }
+
+    return new TextDecoder()
+        .decode(
+            new Uint8Array(bytes)
+        );
+}
+
+const plain =
+    document.getElementById("plain");
+
+const b128 =
+    document.getElementById("b128");
+
+let updating = false;
+
+plain.addEventListener("input", () => {
+
+    if(updating) return;
+    updating = true;
+
+    try{
+        b128.value =
+            encodeBase128(
+                plain.value
+            );
+    }catch{
+        b128.value = "";
+    }
+
+    updating = false;
+});
+
+b128.addEventListener("input", () => {
+
+    if(updating) return;
+    updating = true;
+
+    try{
+        plain.value =
+            decodeBase128(
+                b128.value
+            );
+    }catch{
+        plain.value = "";
+    }
+
+    updating = false;
+});
+
+async function copyText(id, btn){
+
+    const text =
+        document.getElementById(id)
+        .value;
+
+    try{
+        await navigator
+            .clipboard
+            .writeText(text);
+    }
+    catch{
+        const t =
+            document.getElementById(id);
+
+        t.select();
+        document.execCommand("copy");
+        window.getSelection()
+              .removeAllRanges();
+    }
+
+    const old =
+        btn.textContent;
+
+    btn.textContent =
+        "Copied!";
+
+    setTimeout(() => {
+        btn.textContent = old;
+    }, 1500);
+}
+</script>
+
+</body>
+</html>

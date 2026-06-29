@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>kayralrics.net</title>
+
+<style>
+*{
+    box-sizing:border-box;
+    margin:0;
+    padding:0;
+    font-family:Consolas, monospace;
+}
+
+body{
+    background:#000;
+    color:#fff;
+    padding:30px;
+}
+
+h1{
+    text-align:center;
+    margin-bottom:30px;
+    font-size:32px;
+}
+
+.grid{
+    display:grid;
+    grid-template-columns:repeat(auto-fit,minmax(450px,1fr));
+    gap:20px;
+}
+
+.card{
+    border:1px solid #ff0000;
+    background:#000;
+}
+
+.title{
+    padding:15px;
+    border-bottom:1px solid #ff0000;
+    font-weight:bold;
+    font-size:18px;
+}
+
+.content{
+    padding:20px;
+}
+
+textarea{
+    width:100%;
+    height:300px;
+    background:#000;
+    color:#fff;
+    border:1px solid #ff0000;
+    padding:15px;
+    resize:vertical;
+    font-size:15px;
+}
+
+.buttons{
+    margin-top:15px;
+}
+
+button{
+    background:#000;
+    color:#fff;
+    border:1px solid #ff0000;
+    padding:10px 20px;
+    cursor:pointer;
+    transition:0.15s;
+}
+
+button:hover{
+    background:#111;
+}
+
+button:active{
+    background:#220000;
+}
+</style>
+</head>
+<body>
+
+<h1>ROT3 - kayralrics.net</h1>
+
+<div class="grid">
+
+    <div class="card">
+        <div class="title">Normal Text</div>
+        <div class="content">
+            <textarea id="plain" placeholder="Write normal text..."></textarea>
+
+            <div class="buttons">
+                <button onclick="copyText('plain', this)">Copy</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="card">
+        <div class="title">ROT3 Text</div>
+        <div class="content">
+            <textarea id="rot" placeholder="Write ROT3 text..."></textarea>
+
+            <div class="buttons">
+                <button onclick="copyText('rot', this)">Copy</button>
+            </div>
+        </div>
+    </div>
+
+</div>
+
+<script>
+function rot3Encode(str){
+    return str.replace(/[a-zA-Z]/g, function(c){
+        const start = c <= 'Z' ? 65 : 97;
+        return String.fromCharCode(
+            ((c.charCodeAt(0) - start + 3) % 26) + start
+        );
+    });
+}
+
+function rot3Decode(str){
+    return str.replace(/[a-zA-Z]/g, function(c){
+        const start = c <= 'Z' ? 65 : 97;
+        return String.fromCharCode(
+            ((c.charCodeAt(0) - start - 3 + 26) % 26) + start
+        );
+    });
+}
+
+const plain = document.getElementById("plain");
+const rot = document.getElementById("rot");
+
+let updating = false;
+
+plain.addEventListener("input", () => {
+    if (updating) return;
+
+    updating = true;
+    rot.value = rot3Encode(plain.value);
+    updating = false;
+});
+
+rot.addEventListener("input", () => {
+    if (updating) return;
+
+    updating = true;
+    plain.value = rot3Decode(rot.value);
+    updating = false;
+});
+
+async function copyText(id, btn){
+    const text = document.getElementById(id).value;
+
+    try{
+        await navigator.clipboard.writeText(text);
+    }catch{
+        const textarea = document.getElementById(id);
+        textarea.select();
+        document.execCommand("copy");
+        window.getSelection().removeAllRanges();
+    }
+
+    const old = btn.textContent;
+    btn.textContent = "Copied!";
+    setTimeout(() => {
+        btn.textContent = old;
+    }, 1500);
+}
+</script>
+
+</body>
+</html>

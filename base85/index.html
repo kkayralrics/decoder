@@ -1,0 +1,311 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>kayralrics.co</title>
+
+<style>
+*{
+    box-sizing:border-box;
+    margin:0;
+    padding:0;
+    font-family:Consolas, monospace;
+}
+
+body{
+    background:#000;
+    color:#fff;
+    padding:30px;
+}
+
+h1{
+    text-align:center;
+    margin-bottom:30px;
+    font-size:32px;
+}
+
+.grid{
+    display:grid;
+    grid-template-columns:repeat(auto-fit,minmax(450px,1fr));
+    gap:20px;
+}
+
+.card{
+    border:1px solid #ff0000;
+    background:#000;
+}
+
+.title{
+    padding:15px;
+    border-bottom:1px solid #ff0000;
+    font-weight:bold;
+    font-size:18px;
+}
+
+.content{
+    padding:20px;
+}
+
+textarea{
+    width:100%;
+    height:300px;
+    background:#000;
+    color:#fff;
+    border:1px solid #ff0000;
+    padding:15px;
+    resize:vertical;
+    font-size:15px;
+}
+
+.buttons{
+    margin-top:15px;
+}
+
+button{
+    background:#000;
+    color:#fff;
+    border:1px solid #ff0000;
+    padding:10px 20px;
+    cursor:pointer;
+}
+
+button:hover{
+    background:#111;
+}
+</style>
+</head>
+<body>
+
+<h1>Ascii85 - kayralrics.cc</h1>
+
+<div class="grid">
+
+<div class="card">
+<div class="title">Normal Text</div>
+<div class="content">
+
+<textarea id="plain"></textarea>
+
+<div class="buttons">
+<button onclick="copyText('plain',this)">
+Copy
+</button>
+</div>
+
+</div>
+</div>
+
+<div class="card">
+<div class="title">Ascii85 Text</div>
+<div class="content">
+
+<textarea id="a85"></textarea>
+
+<div class="buttons">
+<button onclick="copyText('a85',this)">
+Copy
+</button>
+</div>
+
+</div>
+</div>
+
+</div>
+
+<script>
+function encodeAscii85(str){
+
+    const bytes =
+        new TextEncoder().encode(str);
+
+    let out = "";
+
+    for(let i=0;i<bytes.length;i+=4){
+
+        const chunk =
+            bytes.slice(i,i+4);
+
+        const len =
+            chunk.length;
+
+        const padded =
+            new Uint8Array(4);
+
+        padded.set(chunk);
+
+        let num =
+            (padded[0]*16777216) +
+            (padded[1]*65536) +
+            (padded[2]*256) +
+            padded[3];
+
+        if(num === 0 && len === 4){
+            out += "z";
+            continue;
+        }
+
+        let block = "";
+
+        for(let j=0;j<5;j++){
+            block =
+                String.fromCharCode(
+                    (num % 85) + 33
+                ) + block;
+
+            num =
+                Math.floor(num / 85);
+        }
+
+        out +=
+            block.substring(
+                0,
+                len + 1
+            );
+    }
+
+    return out;
+}
+
+function decodeAscii85(text){
+
+    text =
+        text.replace(/\s+/g,"");
+
+    let bytes = [];
+
+    let i = 0;
+
+    while(i < text.length){
+
+        if(text[i] === "z"){
+            bytes.push(
+                0,0,0,0
+            );
+            i++;
+            continue;
+        }
+
+        const block =
+            text.slice(i,i+5);
+
+        const len =
+            block.length;
+
+        let padded =
+            block.padEnd(5,"u");
+
+        let num = 0;
+
+        for(const c of padded){
+            num =
+                num * 85 +
+                (c.charCodeAt(0)-33);
+        }
+
+        const arr = [
+            (num >>> 24) & 255,
+            (num >>> 16) & 255,
+            (num >>> 8) & 255,
+            num & 255
+        ];
+
+        bytes.push(
+            ...arr.slice(
+                0,
+                len - 1
+            )
+        );
+
+        i += 5;
+    }
+
+    return new TextDecoder()
+        .decode(
+            new Uint8Array(bytes)
+        );
+}
+
+const plain =
+    document.getElementById("plain");
+
+const a85 =
+    document.getElementById("a85");
+
+let updating = false;
+
+plain.addEventListener(
+    "input",
+    () => {
+
+    if(updating) return;
+
+    updating = true;
+
+    try{
+        a85.value =
+            encodeAscii85(
+                plain.value
+            );
+    }
+    catch{
+        a85.value = "";
+    }
+
+    updating = false;
+});
+
+a85.addEventListener(
+    "input",
+    () => {
+
+    if(updating) return;
+
+    updating = true;
+
+    try{
+        plain.value =
+            decodeAscii85(
+                a85.value
+            );
+    }
+    catch{
+        plain.value = "";
+    }
+
+    updating = false;
+});
+
+async function copyText(id,btn){
+
+    const text =
+        document.getElementById(id)
+        .value;
+
+    try{
+        await navigator
+            .clipboard
+            .writeText(text);
+    }
+    catch{
+        const t =
+            document.getElementById(id);
+
+        t.select();
+        document.execCommand("copy");
+    }
+
+    const old =
+        btn.textContent;
+
+    btn.textContent =
+        "Copied!";
+
+    setTimeout(()=>{
+        btn.textContent = old;
+    },1500);
+}
+</script>
+
+</body>
+</html>
